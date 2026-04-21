@@ -21,8 +21,8 @@ vi.mock('@renderer/config/translate', () => ({
   UNKNOWN: { value: 'Unknown', langCode: 'unknown', label: () => 'Unknown', emoji: '🏳️' }
 }))
 
-vi.mock(import('@cherrystudio/ui'), async (importOriginal) => {
-  const actual = await importOriginal()
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
   const { createContext, use, cloneElement, isValidElement } = await import('react')
   type Ctx = { open: boolean; onOpenChange: (next: boolean) => void }
   const PopoverCtx = createContext<Ctx>({ open: false, onOpenChange: () => {} })
@@ -32,10 +32,10 @@ vi.mock(import('@cherrystudio/ui'), async (importOriginal) => {
     open,
     onOpenChange
   }: {
-    children: React.ReactNode
-    open: boolean
-    onOpenChange: (next: boolean) => void
-  }) => <PopoverCtx value={{ open, onOpenChange }}>{children}</PopoverCtx>
+    children?: React.ReactNode
+    open?: boolean
+    onOpenChange?: (next: boolean) => void
+  }) => <PopoverCtx value={{ open: open ?? false, onOpenChange: onOpenChange ?? (() => {}) }}>{children}</PopoverCtx>
 
   const PopoverTrigger = ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => {
     const { open, onOpenChange } = use(PopoverCtx)
@@ -56,7 +56,7 @@ vi.mock(import('@cherrystudio/ui'), async (importOriginal) => {
     )
   }
 
-  const PopoverContent = ({ children }: { children: React.ReactNode }) => {
+  const PopoverContent = ({ children }: { children?: React.ReactNode }) => {
     const { open } = use(PopoverCtx)
     return open ? <div data-testid="popover-content">{children}</div> : null
   }
