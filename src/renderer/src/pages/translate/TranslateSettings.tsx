@@ -1,6 +1,5 @@
 import { HelpTooltip, PageSidePanel, Popover, PopoverContent, PopoverTrigger, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import {
@@ -18,6 +17,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import IconButton from './components/IconButton'
+import LanguagePicker from './components/LanguagePicker'
 
 type Props = {
   visible: boolean
@@ -163,16 +163,14 @@ const TranslateSettings: FC<Props> = ({
         {isBidirectional && (
           <div className="flex items-center gap-2">
             <div className="flex-1">
-              <LanguageSelect
-                style={{ width: '100%' }}
+              <LanguagePicker
                 value={bidirectionalPair[0].langCode}
                 onChange={(value) => updateBidirectionalPair([getLanguageByLangcode(value), bidirectionalPair[1]])}
               />
             </div>
             <ArrowLeftRight size={12} className="shrink-0 text-foreground-muted" />
             <div className="flex-1">
-              <LanguageSelect
-                style={{ width: '100%' }}
+              <LanguagePicker
                 value={bidirectionalPair[1].langCode}
                 onChange={(value) => updateBidirectionalPair([bidirectionalPair[0], getLanguageByLangcode(value)])}
               />
