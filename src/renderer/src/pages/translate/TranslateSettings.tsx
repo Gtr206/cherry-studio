@@ -1,4 +1,4 @@
-import { HelpTooltip, Popover, PopoverContent, PopoverTrigger, Switch, Tooltip } from '@cherrystudio/ui'
+import { HelpTooltip, PageSidePanel, Popover, PopoverContent, PopoverTrigger, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
@@ -13,16 +13,11 @@ import type { AutoDetectionMethod, CustomTranslateLanguage, TranslateLanguage } 
 import { cn } from '@renderer/utils'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { ArrowLeftRight, Check, PenLine, Plus, SlidersHorizontal, X } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { memo, useEffect, useRef, useState } from 'react'
-// TODO(v2/pr-14315): Replace the custom motion.div drawer + useDrawerFocus
-// with `<PageSidePanel>` from `@cherrystudio/ui` once this page consumes that
-// composite.
 import { useTranslation } from 'react-i18next'
 
 import IconButton from './components/IconButton'
-import { useDrawerFocus } from './components/useDrawerFocus'
 
 type Props = {
   visible: boolean
@@ -56,8 +51,6 @@ const TranslateSettings: FC<Props> = ({
   const { t } = useTranslation()
   const { getLanguageByLangcode, settings, updateSettings } = useTranslate()
   const { autoCopy } = settings
-  const drawerRef = useRef<HTMLDivElement>(null)
-  useDrawerFocus(visible, drawerRef)
 
   const updateBidirectionalPair = (next: [TranslateLanguage, TranslateLanguage]) => {
     if (next[0] === next[1]) {
@@ -116,125 +109,84 @@ const TranslateSettings: FC<Props> = ({
     }
   ]
 
+  const header = (
+    <span className="flex items-center gap-1.5 font-medium text-foreground text-sm">
+      <SlidersHorizontal size={12} className="text-muted-foreground" />
+      <span>{t('translate.settings.title')}</span>
+    </span>
+  )
+
   return (
-    <AnimatePresence>
-      {visible && (
-        <>
-          <motion.div
-            key="translate-settings-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="absolute inset-0 z-40 bg-black/5"
-            onClick={onClose}
-          />
-          <motion.div
-            ref={drawerRef}
-            key="translate-settings-drawer"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                e.stopPropagation()
-                onClose()
-              }
-            }}
-            className="absolute top-0 right-0 bottom-0 z-50 flex w-[300px] flex-col overflow-hidden rounded-l-xs border-border border-l bg-popover shadow-lg"
-            tabIndex={-1}>
-            <div className="flex h-11 shrink-0 items-center justify-between border-border/30 border-b px-4">
-              <span className="flex items-center gap-1.5 font-medium text-foreground text-sm">
-                <SlidersHorizontal size={12} className="text-muted-foreground" />
-                <span>{t('translate.settings.title')}</span>
-              </span>
-              <IconButton size="md" onClick={onClose} aria-label={t('translate.close')}>
-                <X size={12} />
-              </IconButton>
+    <PageSidePanel open={visible} onClose={onClose} header={header} closeLabel={t('translate.close')}>
+      {toggleItems.map((item) => (
+        <div key={item.key} className="flex items-center justify-between gap-4">
+          <span className="text-foreground text-xs">{item.label}</span>
+          <Switch size="sm" checked={item.value} onCheckedChange={item.onChange} />
+        </div>
+      ))}
+
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-1">
+          <span className="text-foreground text-xs">{t('translate.detect.method.label')}</span>
+          <HelpTooltip content={t('translate.detect.method.tip')} iconProps={{ className: 'text-foreground-muted' }} />
+        </div>
+        <div className="flex items-center gap-0.5 rounded-2xs border border-border/50 bg-card p-0.5">
+          {detectionOptions.map((opt) => (
+            <Tooltip key={opt.value} content={opt.tip} placement="top">
+              <button
+                type="button"
+                onClick={() => setAutoDetectionMethod(opt.value)}
+                className={cn(
+                  'rounded-3xs px-2 py-0.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                  autoDetectionMethod === opt.value
+                    ? 'bg-accent text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}>
+                {opt.label}
+              </button>
+            </Tooltip>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <span className="text-foreground text-xs">{t('translate.settings.bidirectional')}</span>
+            <HelpTooltip
+              content={t('translate.settings.bidirectional_tip')}
+              iconProps={{ className: 'text-foreground-muted' }}
+            />
+          </div>
+          <Switch size="sm" checked={isBidirectional} onCheckedChange={setIsBidirectional} />
+        </div>
+        {isBidirectional && (
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <LanguageSelect
+                style={{ width: '100%' }}
+                value={bidirectionalPair[0].langCode}
+                onChange={(value) => updateBidirectionalPair([getLanguageByLangcode(value), bidirectionalPair[1]])}
+              />
             </div>
-
-            <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
-              {toggleItems.map((item) => (
-                <div key={item.key} className="flex items-center justify-between gap-4">
-                  <span className="text-foreground text-xs">{item.label}</span>
-                  <Switch size="sm" checked={item.value} onCheckedChange={item.onChange} />
-                </div>
-              ))}
-
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-1">
-                  <span className="text-foreground text-xs">{t('translate.detect.method.label')}</span>
-                  <HelpTooltip
-                    content={t('translate.detect.method.tip')}
-                    iconProps={{ className: 'text-foreground-muted' }}
-                  />
-                </div>
-                <div className="flex items-center gap-0.5 rounded-2xs border border-border/50 bg-card p-0.5">
-                  {detectionOptions.map((opt) => (
-                    <Tooltip key={opt.value} content={opt.tip} placement="top">
-                      <button
-                        type="button"
-                        onClick={() => setAutoDetectionMethod(opt.value)}
-                        className={cn(
-                          'rounded-3xs px-2 py-0.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                          autoDetectionMethod === opt.value
-                            ? 'bg-accent text-foreground'
-                            : 'text-muted-foreground hover:text-foreground'
-                        )}>
-                        {opt.label}
-                      </button>
-                    </Tooltip>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <span className="text-foreground text-xs">{t('translate.settings.bidirectional')}</span>
-                    <HelpTooltip
-                      content={t('translate.settings.bidirectional_tip')}
-                      iconProps={{ className: 'text-foreground-muted' }}
-                    />
-                  </div>
-                  <Switch size="sm" checked={isBidirectional} onCheckedChange={setIsBidirectional} />
-                </div>
-                {isBidirectional && (
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <LanguageSelect
-                        style={{ width: '100%' }}
-                        value={bidirectionalPair[0].langCode}
-                        onChange={(value) =>
-                          updateBidirectionalPair([getLanguageByLangcode(value), bidirectionalPair[1]])
-                        }
-                      />
-                    </div>
-                    <ArrowLeftRight size={12} className="shrink-0 text-foreground-muted" />
-                    <div className="flex-1">
-                      <LanguageSelect
-                        style={{ width: '100%' }}
-                        value={bidirectionalPair[1].langCode}
-                        onChange={(value) =>
-                          updateBidirectionalPair([bidirectionalPair[0], getLanguageByLangcode(value)])
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="border-border/40 border-t" />
-
-              <TranslatePromptField />
-
-              <CustomLanguageList />
+            <ArrowLeftRight size={12} className="shrink-0 text-foreground-muted" />
+            <div className="flex-1">
+              <LanguageSelect
+                style={{ width: '100%' }}
+                value={bidirectionalPair[1].langCode}
+                onChange={(value) => updateBidirectionalPair([bidirectionalPair[0], getLanguageByLangcode(value)])}
+              />
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+          </div>
+        )}
+      </div>
+
+      <div className="border-border/40 border-t" />
+
+      <TranslatePromptField />
+
+      <CustomLanguageList />
+    </PageSidePanel>
   )
 }
 

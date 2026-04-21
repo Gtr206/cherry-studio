@@ -8,10 +8,6 @@ import type { FC, ReactNode, RefObject } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-// TODO(v2/pr-14315): Replace the custom LanguageDropdown / LanguageOption with
-// `<SelectDropdown>` from `@cherrystudio/ui` once this page consumes that
-// composite.
-
 type Props = {
   sourceLanguage: TranslateLanguage | 'auto'
   onSourceChange: (language: TranslateLanguage | 'auto') => void
@@ -200,11 +196,34 @@ const LanguageDropdown: FC<{
   const half = DROPDOWN_WIDTH / 2
   const maxLeft = Math.max(0, containerWidth - DROPDOWN_WIDTH)
   const left = Math.min(Math.max(anchorX - half, 0), maxLeft)
+  const [isScrolling, setIsScrolling] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleScroll = () => {
+    setIsScrolling(true)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setIsScrolling(false), 1000)
+  }
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    },
+    []
+  )
+
   // `left` is a runtime-computed pixel anchored to the click position; a
   // Tailwind class can't express a dynamic value per-instance.
+  // `scrollbarColor` is inlined so the thumb only shows while the user is
+  // actively scrolling — prevents a permanent scrollbar from hugging the
+  // rounded right edge.
   return (
     <div
-      style={{ left }}
+      onScroll={handleScroll}
+      style={{
+        left,
+        scrollbarColor: isScrolling ? 'var(--color-scrollbar-thumb) transparent' : 'transparent transparent'
+      }}
       className="absolute top-full z-50 mt-1 max-h-[240px] w-40 overflow-y-auto rounded-xs border border-border bg-popover py-1 shadow-xl">
       {children}
     </div>
