@@ -20,8 +20,9 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { Tag } from '@shared/data/types/tag'
 import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
+import { pinService } from './PinService'
 import { tagService } from './TagService'
-import { timestampToISO } from './utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
 
@@ -52,14 +53,11 @@ function rowToAssistant(
   tags: Tag[] = [],
   modelName: string | null = null
 ): Assistant {
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    name: row.name,
-    prompt: row.prompt ?? '',
-    emoji: row.emoji ?? '🌟',
-    description: row.description ?? '',
-    settings: row.settings ?? DEFAULT_ASSISTANT_SETTINGS,
-    modelId: (row.modelId ?? null) as UniqueModelId | null,
+    ...clean,
+    // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
+    modelId: row.modelId as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: timestampToISO(row.createdAt),
@@ -383,22 +381,22 @@ export class AssistantDataService {
       // back to `chat.default_model_id` preference (stale → null).
       const modelId = await this.resolveCreateModelId(tx, dto.modelId)
 
-      const [inserted] = await tx
-        .insert(assistantTable)
-        .values({
-          name: dto.name,
-          prompt: dto.prompt,
-          emoji: dto.emoji,
-          description: dto.description,
-          modelId,
-          settings: dto.settings
-        })
-        .returning()
+      // Split relation/tag fields from columns. Service owns emoji/settings
+      // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
+      const { mcpServerIds, knowledgeBaseIds, tagIds, ...columnDto } = dto
+      const insertValues: typeof assistantTable.$inferInsert = {
+        ...columnDto,
+        modelId,
+        emoji: dto.emoji ?? '🌟',
+        settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
+      }
 
-      await this.syncRelations(tx, inserted.id, dto)
+      const [inserted] = await tx.insert(assistantTable).values(insertValues).returning()
 
-      if (dto.tagIds !== undefined) {
-        await tagService.syncEntityTagsWithin(tx, 'assistant', inserted.id, dto.tagIds)
+      await this.syncRelations(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
+
+      if (tagIds !== undefined) {
+        await tagService.syncEntityTagsWithin(tx, 'assistant', inserted.id, tagIds)
       }
 
       // Re-read the bound tags inside the tx so the response reflects the
@@ -527,6 +525,7 @@ export class AssistantDataService {
     await this.db.transaction(async (tx) => {
       await tx.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
       await tagService.purgeForEntity(tx, 'assistant', id)
+      await pinService.purgeForEntity(tx, 'assistant', id)
     })
 
     logger.info('Soft-deleted assistant', { id })

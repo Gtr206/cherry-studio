@@ -57,16 +57,14 @@ export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIEL
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
 /**
- * DTO for updating an existing assistant. All fields optional, chain-derived from Create.
- *
- * Note: entity `.default()` modifiers are preserved through `.partial()`, so a naive
- * `.parse(body)` would inject defaults for omitted fields and overwrite existing rows.
- * Handlers must strip injected keys via `body`-presence filtering before forwarding to the
- * service (see `/assistants/:id` PATCH handler).
- *
- * Relation arrays (mcpServerIds, knowledgeBaseIds, tagIds), if provided, replace existing junction table rows.
+ * DTO for updating an existing assistant. All fields optional.
+ * Relation arrays (mcpServerIds, knowledgeBaseIds, tagIds), if provided,
+ * replace existing junction table rows. Update picks directly from the entity,
+ * not Create, so Create defaults do not bleed into partial updates.
  */
-export const UpdateAssistantSchema = CreateAssistantSchema.partial()
+export const UpdateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
+  .partial()
+  .extend({ tagIds: TagIdsField })
 export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
 
 export const ASSISTANTS_DEFAULT_PAGE = 1

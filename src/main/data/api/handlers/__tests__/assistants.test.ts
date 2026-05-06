@@ -22,48 +22,96 @@ import { assistantHandlers } from '../assistants'
 
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const TAG_ID = '22222222-2222-4222-8222-222222222222'
-const MCP_SERVER_ID = 'mcp-server-1'
 
 describe('assistantHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('/assistants/:id', () => {
-    it('should preserve tag-only PATCH bodies without injecting assistant defaults', async () => {
-      updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Test' })
+  describe('/assistants', () => {
+    it('should forward create bodies without injecting defaults', async () => {
+      createMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'New Assistant' })
 
-      await assistantHandlers['/assistants/:id'].PATCH({
-        params: { id: ASSISTANT_ID },
-        body: { tagIds: [TAG_ID] }
-      } as never)
+      await expect(
+        assistantHandlers['/assistants'].POST({
+          body: { name: 'New Assistant' }
+        } as never)
+      ).resolves.toMatchObject({ id: ASSISTANT_ID })
+
+      expect(createMock).toHaveBeenCalledWith({
+        name: 'New Assistant'
+      })
+    })
+
+    it('should reject partial settings instead of filling nested defaults', async () => {
+      await expect(
+        assistantHandlers['/assistants'].POST({
+          body: {
+            name: 'New Assistant',
+            settings: { maxTokens: 8192 }
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/assistants/:id', () => {
+    it('should forward tag-only PATCH bodies without defaulted column fields', async () => {
+      updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Existing Assistant' })
+
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { tagIds: [TAG_ID] }
+        } as never)
+      ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
       expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { tagIds: [TAG_ID] })
     })
 
-    it('should preserve name-only PATCH bodies without injecting assistant defaults', async () => {
-      updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'renamed' })
+    it('should forward relation-only PATCH bodies without defaulted column fields', async () => {
+      updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Existing Assistant' })
 
-      await assistantHandlers['/assistants/:id'].PATCH({
-        params: { id: ASSISTANT_ID },
-        body: { name: 'renamed' }
-      } as never)
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { mcpServerIds: ['srv-1'], knowledgeBaseIds: ['kb-1'] }
+        } as never)
+      ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { name: 'renamed' })
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {
+        mcpServerIds: ['srv-1'],
+        knowledgeBaseIds: ['kb-1']
+      })
     })
 
-    it('should preserve relation-only PATCH bodies without injecting assistant defaults', async () => {
-      updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Test' })
+    it('should forward empty PATCH bodies without injecting create defaults', async () => {
+      updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Existing Assistant' })
 
-      await assistantHandlers['/assistants/:id'].PATCH({
-        params: { id: ASSISTANT_ID },
-        body: { mcpServerIds: [MCP_SERVER_ID] }
-      } as never)
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: {}
+        } as never)
+      ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { mcpServerIds: [MCP_SERVER_ID] })
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {})
     })
 
-    it('should reject invalid tag ids before calling update', async () => {
+    it('should reject partial settings updates before calling the service', async () => {
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { settings: { maxTokens: 8192 } }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject invalid tag ids before calling the service', async () => {
       await expect(
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
@@ -72,39 +120,6 @@ describe('assistantHandlers', () => {
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateMock).not.toHaveBeenCalled()
-    })
-
-    it('should not inject prompt/emoji/description defaults when omitted', async () => {
-      updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'renamed' })
-
-      await assistantHandlers['/assistants/:id'].PATCH({
-        params: { id: ASSISTANT_ID },
-        body: { name: 'renamed' }
-      } as never)
-
-      const [, patch] = updateMock.mock.calls[0]
-      expect(patch).not.toHaveProperty('prompt')
-      expect(patch).not.toHaveProperty('emoji')
-      expect(patch).not.toHaveProperty('description')
-      expect(patch).not.toHaveProperty('settings')
-    })
-
-    it('should forward settings as a whole when body provides it (full replacement)', async () => {
-      updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Test' })
-
-      await assistantHandlers['/assistants/:id'].PATCH({
-        params: { id: ASSISTANT_ID },
-        body: { settings: { temperature: 0.5 } }
-      } as never)
-
-      const [, patch] = updateMock.mock.calls[0]
-      // `settings` was present in body, so it is forwarded; entity-level `.default()` fills
-      // omitted inner fields. Renderer is expected to send the full settings object.
-      expect(patch).toHaveProperty('settings.temperature', 0.5)
-      // Sibling top-level fields stay absent — they were not in `body`.
-      expect(patch).not.toHaveProperty('prompt')
-      expect(patch).not.toHaveProperty('emoji')
-      expect(patch).not.toHaveProperty('description')
     })
   })
 })
