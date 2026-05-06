@@ -1,5 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { TaggableEntityType } from '@shared/data/api/schemas/tags'
 import type { Tag } from '@shared/data/types/tag'
 import { useCallback, useMemo } from 'react'
@@ -87,7 +88,7 @@ export function useTagMutations() {
 
 // Map a taggable entity type to the resource list path whose cards may render
 // the bound tag chips. Keep this aligned with `SUPPORTED_ENTITY_TYPES` above.
-const LIST_PATH_BY_ENTITY: Partial<Record<TaggableEntityType, '/assistants' | '/agents' | '/skills'>> = {
+const LIST_PATH_BY_ENTITY: Partial<Record<TaggableEntityType, ConcreteApiPaths>> = {
   assistant: '/assistants',
   agent: '/agents',
   skill: '/skills'
@@ -99,7 +100,7 @@ export function useSyncEntityTags() {
       const params = args?.params
       if (!params) return ['/tags']
       const listPath = LIST_PATH_BY_ENTITY[params.entityType]
-      const paths: string[] = ['/tags', `/tags/entities/${params.entityType}/${params.entityId}`]
+      const paths: ConcreteApiPaths[] = ['/tags', `/tags/entities/${params.entityType}/${params.entityId}`]
       if (listPath) paths.push(listPath)
       return paths
     }
