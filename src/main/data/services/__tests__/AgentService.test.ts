@@ -6,6 +6,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { pinService } from '@data/services/PinService'
+import { ErrorCode } from '@shared/data/api'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
@@ -323,6 +324,35 @@ describe('AgentService', () => {
       const cleared = await agentService.updateAgent(created.id, { tagIds: [] })
 
       expect(cleared?.tags).toEqual([])
+      const bindings = await dbh.db
+        .select()
+        .from(entityTagTable)
+        .where(and(eq(entityTagTable.entityType, 'agent'), eq(entityTagTable.entityId, created.id)))
+      expect(bindings).toHaveLength(0)
+    })
+
+    it('does not write tag bindings when the agent disappears after the precheck', async () => {
+      await seedTags()
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'concurrent-delete',
+        model: 'claude-3-5-sonnet'
+      })
+      const existing = await agentService.getAgent(created.id)
+      expect(existing).not.toBeNull()
+      await dbh.db.delete(agentTable).where(eq(agentTable.id, created.id))
+
+      const getAgentSpy = vi.spyOn(agentService, 'getAgent').mockResolvedValueOnce(existing)
+      try {
+        await expect(
+          agentService.updateAgent(created.id, {
+            tagIds: ['44444444-4444-4444-8444-444444444444']
+          })
+        ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      } finally {
+        getAgentSpy.mockRestore()
+      }
+
       const bindings = await dbh.db
         .select()
         .from(entityTagTable)

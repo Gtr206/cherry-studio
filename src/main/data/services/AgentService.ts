@@ -333,22 +333,19 @@ export class AgentService {
     }
 
     const database = application.get('DbService').getDb()
-
-    const rawRows = await database
-      .select()
-      .from(agentsTable)
-      .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
-      .limit(1)
-    const rawOldAgent = rawRows[0]
+    const aliveFilter = and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt))
 
     await withSqliteErrors(
       () =>
         database.transaction(async (tx) => {
+          const [rawOldAgent] = await tx.select().from(agentsTable).where(aliveFilter).limit(1)
+          if (!rawOldAgent) {
+            throw DataApiErrorFactory.notFound('Agent', id)
+          }
+
           if (hasColumnUpdates) {
-            await tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
-            if (rawOldAgent) {
-              await this.syncSettingsToSessions(tx, id, rawOldAgent, columnUpdates)
-            }
+            await tx.update(agentsTable).set(updateData).where(aliveFilter)
+            await this.syncSettingsToSessions(tx, id, rawOldAgent, columnUpdates)
           }
           if (hasTagUpdate) {
             await tagService.syncEntityTagsWithin(tx, 'agent', id, tagIds)
