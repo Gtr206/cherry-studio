@@ -1,4 +1,3 @@
-import { PlusOutlined } from '@ant-design/icons'
 import { Sortable, useDndReorder } from '@cherrystudio/ui'
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
@@ -33,6 +32,7 @@ import {
   MousePointerClick,
   NotepadText,
   Palette,
+  Plus,
   Settings,
   Sparkle,
   Sun,
@@ -285,7 +285,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
             }}
           />
           <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
-            <PlusOutlined />
+            <Plus size={16} />
           </AddTabButton>
         </HorizontalScrollContainer>
         <RightButtonsContainer style={{ paddingRight: isLinux && useSystemTitleBar ? '12px' : undefined }}>
