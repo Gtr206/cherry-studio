@@ -107,10 +107,10 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
-// Import after mocks
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
+  isDestroyed: ReturnType<typeof vi.fn>
   isFullScreen: ReturnType<typeof vi.fn>
   hide: ReturnType<typeof vi.fn>
   webContents: { reload: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn> }
@@ -118,6 +118,7 @@ interface MockBrowserWindow extends EventEmitter {
 
 function createMockWindow(): MockBrowserWindow {
   const win = new EventEmitter() as MockBrowserWindow
+  win.isDestroyed = vi.fn(() => false)
   win.isFullScreen = vi.fn(() => false)
   win.hide = vi.fn()
   win.webContents = {
@@ -171,6 +172,15 @@ describe('MainWindowService', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('replays the existing main window to late subscribers', () => {
+    ;(svc as any).mainWindow = win
+    const listener = vi.fn()
+
+    svc.onMainWindowCreated(listener)
+
+    expect(listener).toHaveBeenCalledWith(win)
   })
 
   describe('close handler', () => {

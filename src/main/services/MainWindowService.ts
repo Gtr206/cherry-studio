@@ -41,7 +41,17 @@ export class MainWindowService extends BaseService {
   constructor() {
     super()
     this._onMainWindowCreated = this.registerDisposable(new Emitter<BrowserWindow>())
-    this.onMainWindowCreated = this._onMainWindowCreated.event
+    this.onMainWindowCreated = (listener) => {
+      const disposable = this._onMainWindowCreated.event(listener)
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        try {
+          listener(this.mainWindow)
+        } catch {
+          // Keep replay semantics aligned with Emitter.fire(): one listener must not break service init.
+        }
+      }
+      return disposable
+    }
   }
 
   protected async onInit() {
