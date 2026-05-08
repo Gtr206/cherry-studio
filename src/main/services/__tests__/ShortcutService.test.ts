@@ -184,6 +184,27 @@ describe('ShortcutService', () => {
     expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+numadd', expect.any(Function))
   })
 
+  it('registers global shortcuts immediately for an unfocused main window', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.general.show_main_window', {
+      binding: ['CommandOrControl', 'M'],
+      enabled: true
+    })
+    mainWindow.setFocused(false)
+
+    await (service as any).onInit()
+
+    expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+M', expect.any(Function))
+    expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
+
+    const showMainRegistration = globalShortcutMock.register.mock.calls.find(
+      ([accelerator]) => accelerator === 'CommandOrControl+M'
+    )
+    const showMainHandler = showMainRegistration?.[1] as (() => void) | undefined
+    showMainHandler?.()
+
+    expect(windowServiceMock.toggleMainWindow).toHaveBeenCalledTimes(1)
+  })
+
   it('opens the settings window through SettingsWindowService preference target', async () => {
     await (service as any).onInit()
 

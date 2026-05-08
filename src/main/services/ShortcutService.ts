@@ -154,8 +154,8 @@ export class ShortcutService extends BaseService {
       this.registerDisposable(() => window.off('closed', onClosed))
     }
 
-    if (!window.isDestroyed() && window.isFocused()) {
-      this.registerShortcuts(window, false)
+    if (!window.isDestroyed()) {
+      this.registerShortcuts(window, !window.isFocused())
     }
   }
 
